@@ -1,5 +1,7 @@
 import hashlib
 import datetime as date
+import string
+#kind of a replica of Bitcoin to learn basics of blockchain
 
 class Block:
     def __init__(self,index,timestamp,data,previous_hash):
@@ -7,15 +9,18 @@ class Block:
         self.timestamp = timestamp
         self.data = data
         self.previous_hash = previous_hash
+        self.nonce = 0
         self.hash = self.calculate_hash()
     
     def calculate_hash(self):
-        hash_str = f"{self.index}{self.timestamp}{self.timestamp}{self.data}{self.previous_hash}"
+        hash_str = f"{self.index}{self.timestamp}{self.timestamp}{self.nonce}{self.data}{self.previous_hash}"
         return hashlib.sha256(hash_str.encode()).hexdigest()
     
 
 class Blockchain:
+    difficulty = 2 
     def __init__(self):
+        self.unconfirmed_transactions = []
         self.chain = [self.create_genesis_block()]
     
     def create_genesis_block(self):
@@ -24,39 +29,68 @@ class Blockchain:
     def get_latest_block(self):
         return self.chain[-1]
     
-    def add_block(self,new_block):
-        new_block.previous_hash = self.get_latest_block().hash
-        new_block.hash = new_block.calculate_hash()
-        self.chain.append(new_block)
-    
-    def is_valid(self):
-        for i in range(1,len(self.chain)):
-            current_block = self.chain[i]
-            previous_block = self.chain[i-1]
+    def add_block(self,block,proof):
+        previous_hash = self.get_latest_block().hash
 
-            if current_block.hash != current_block.calculate_hash():
-                return False
-            
-            if current_block.previous_hash != previous_block.hash:
-                return False
+        if previous_hash != block.previous_hash:
+            return False
+        if not self.is_valid_proof(block,proof):
+            return False
+        
+        block.hash = proof
+        self.chain.append(block)
         return True
-    
 
+    def is_valid_proof(self, block, block_hash):
+    
+        return (block_hash.startswith('0' * Blockchain.difficulty) and
+                block_hash == block.calculate_hash())
+
+    def proof_of_work(self,block):
+        block.nonce = 0
+
+        computed_hash = block.calculate_hash()
+        while not computed_hash.startswith('0'* Blockchain.difficulty):
+            #print(computed_hash)
+            block.nonce += 1
+            computed_hash = block.calculate_hash()
+            
+        return computed_hash
+
+    def add_new_transactions(self,transaction):
+        self.unconfirmed_transactions.append(transaction)
+
+    def mine(self):
+        if not self.unconfirmed_transactions:
+            return False
+        
+        while len(self.unconfirmed_transactions)!=0:
+            last_block = self.get_latest_block()
+            new_block = Block(index=last_block.index+1,
+                            data=self.unconfirmed_transactions[0],
+                            timestamp=date.datetime.now(),
+                            previous_hash=last_block.hash)
+
+            proof = self.proof_of_work(new_block)
+            #print(proof)
+            self.add_block(new_block,proof)
+            self.unconfirmed_transactions.pop(0)
 
 if __name__ == "__main__":
     # Create the blockchain
     blockchain = Blockchain()
 
-    # Add blocks to the blockchain
-    blockchain.add_block(Block(1, date.datetime.now(), "Transaction Data 1", ""))
-    blockchain.add_block(Block(2, date.datetime.now(), "Transaction Data 2", ""))
-    blockchain.add_block(Block(3, date.datetime.now(), "Transaction Data 3", ""))
+    for letters in string.ascii_letters:
+        blockchain.add_new_transactions(str(letters)) # for testing i used ascii letters
+        
+    blockchain.mine()
 
     # Print the contents of the blockchain
     for block in blockchain.chain:
         print("Block #" + str(block.index))
         print("Timestamp: " + str(block.timestamp))
-        print("Data: " + block.data)
+        print("Data: " + str(block.data))
         print("Hash: " + block.hash)
         print("Previous Hash: " + block.previous_hash)
+        print("Nonce: " + str(block.nonce))
         print("\n")
